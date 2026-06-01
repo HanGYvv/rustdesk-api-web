@@ -20,10 +20,16 @@ export const useUserStore = defineStore({
   actions: {
     logout () {
       removeToken()
+      localStorage.removeItem('user_info')
       removeCode()
       this.$patch({
-        name: '',
-        role: {},
+        nickname: '',
+        username: '',
+        email: '',
+        token: '',
+        role: '',
+        avatar: '',
+        route_names: [],
       })
     },
 
@@ -40,14 +46,16 @@ export const useUserStore = defineStore({
       }
     },
 
+    async bootstrapUserSession (userData) {
+      this.saveUserData(userData)
+      void useAppStore().loadConfig()
+      return userData
+    },
+
     async login (form) {
       const res = await login(form).catch(e => e)
-      console.log('login', res)
       if (!res.code) {
-        useAppStore().loadConfig()
-        const userData = res.data
-        this.saveUserData(userData)
-        return userData
+        return this.bootstrapUserSession(res.data)
       } else {
         return Promise.reject(res)
       }
@@ -55,14 +63,7 @@ export const useUserStore = defineStore({
     async info () {
       const res = await current().catch(_ => false)
       if (res) {
-        useAppStore().loadConfig()
-        const userData = res.data
-        setToken(userData.token)
-        this.$patch({
-          ...userData,
-        })
-        useRouteStore().addRoutes(userData.route_names)
-        return userData
+        return this.bootstrapUserSession(res.data)
       }
       return false
     },
@@ -94,10 +95,7 @@ export const useUserStore = defineStore({
       const res = await oidcQuery(params).catch(_ => false)
       if (res) {
         removeCode()
-        useAppStore().loadConfig()
-        const userData = res.data
-        this.saveUserData(userData)
-        return userData
+        return this.bootstrapUserSession(res.data)
       }
       return false
     },

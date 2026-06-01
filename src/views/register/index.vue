@@ -35,7 +35,6 @@
   import { useRoute, useRouter } from 'vue-router'
   import { register } from '@/api/user'
   import { useUserStore } from '@/store/user'
-  import { useAppStore } from '@/store/app'
 
   const router = useRouter()
   const userStore = useUserStore()
@@ -78,8 +77,7 @@
     if (!res) {
       return
     }
-    userStore.saveUserData(res.data)
-    useAppStore().loadConfig()
+    await userStore.bootstrapUserSession(res.data)
     ElMessage.success('Submit')
     router.push('/')
   }

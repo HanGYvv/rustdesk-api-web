@@ -47,7 +47,6 @@ export const useAppStore = defineStore({
       this.setting.sideIsCollapse = !this.setting.sideIsCollapse
     },
     setLang (lang) {
-      console.log('setLang', lang)
       this.setting.lang = lang
       this.setting.locale = langs[lang]
       localStorage.setItem('lang', lang)
@@ -55,19 +54,19 @@ export const useAppStore = defineStore({
     changeLang (v) {
       this.setLang(v)
     },
-    loadConfig () {
-      this.getAppConfig()
-      this.getAdminConfig()
-      this.loadRustdeskConfig()
+    async loadConfig () {
+      await Promise.allSettled([
+        this.getAppConfig(),
+        this.getAdminConfig(),
+        this.loadRustdeskConfig(),
+      ])
     },
     getAppConfig () {
-      console.log('getAppConfig')
       return app().then(res => {
         this.setting.appConfig = res.data
       })
     },
     getAdminConfig () {
-      console.log('getAdminConfig')
       return admin().then(res => {
         this.replaceAdminTitle(res.data.title)
         this.setting.hello = res.data.hello
@@ -78,16 +77,15 @@ export const useAppStore = defineStore({
       this.setting.title = newTitle
     },
     async loadRustdeskConfig () {
-      console.log('loadRustdeskConfig')
       const res = await server().catch(_ => false)
-      if (res) {
-        this.setting.rustdeskConfig = res.data
-        const prefix = 'wc-'
-        localStorage.setItem(`${prefix}custom-rendezvous-server`, res.data.id_server)
-        localStorage.setItem(`${prefix}key`, res.data.key)
-        localStorage.setItem(`${prefix}api-server`, res.data.api_server)
+      if (!res) {
+        return
       }
-
+      this.setting.rustdeskConfig = res.data
+      const prefix = 'wc-'
+      localStorage.setItem(`${prefix}custom-rendezvous-server`, res.data.id_server)
+      localStorage.setItem(`${prefix}key`, res.data.key)
+      localStorage.setItem(`${prefix}api-server`, res.data.api_server)
     },
   },
 })
