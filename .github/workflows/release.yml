@@ -1,0 +1,146 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Verify version matches tag
+        run: |
+          node - <<'NODE'
+          const fs = require('fs')
+          const tag = process.env.GITHUB_REF_NAME
+          const version = tag.replace(/^v/, '')
+          const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'))
+          const lock = JSON.parse(fs.readFileSync('package-lock.json', 'utf8'))
+          if (pkg.version !== version) {
+            console.error(`package.json version ${pkg.version} does not match tag ${tag}`)
+            process.exit(1)
+          }
+          if (lock.version !== version || lock.packages?.['']?.version !== version) {
+            console.error(`package-lock.json version ${lock.version} does not match tag ${tag}`)
+            process.exit(1)
+          }
+          NODE
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Pack release assets
+        run: |
+          zip -r dist.zip dist
+          git archive --format=zip --output source.zip HEAD
+          sha256sum dist.zip source.zip > checksums.txt
+
+      - name: Generate release notes
+        run: |
+          node - <<'NODE'
+          const fs = require('fs')
+          const { execSync } = require('child_process')
+
+          const tag = process.env.GITHUB_REF_NAME
+          const version = tag.replace(/^v/, '')
+          const releaseDate = new Date().toISOString().slice(0, 10)
+          const prevTag = execSync(
+            `git tag --sort=-creatordate | awk -v tag="${tag}" '$0 != tag { print; exit }'`,
+            { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] },
+          ).trim()
+
+          const range = prevTag ? `${prevTag}..HEAD` : 'HEAD'
+          const commits = execSync(
+            `git log --no-merges --format=%s ${range}`,
+            { encoding: 'utf8' },
+          )
+            .split('\n')
+            .map(line => line.trim())
+            .filter(Boolean)
+            .filter(subject => /^(feat|fix|refactor|chore|ci)(\([^)]+\))?:\s+\S+/i.test(subject))
+
+          const sections = {
+            Added: [],
+            Changed: [],
+            Fixed: [],
+            Removed: [],
+          }
+
+          const addSectionItem = (section, text) => {
+            if (!sections[section].includes(text)) sections[section].push(text)
+          }
+
+          for (const subject of commits) {
+            const s = subject.toLowerCase()
+            if (s.includes('auth bootstrap resilient')) {
+              addSectionItem('Fixed', 'Harden login and session bootstrap so temporary config failures no longer block sign-in.')
+            } else if (s.includes('harden webclient flow')) {
+              addSectionItem('Changed', 'Improve WebClient share and relay handling with safer base URL resolution and timeouts.')
+            } else if (s.includes('github workflows')) {
+              addSectionItem('Added', 'Add GitHub Actions CI and release automation for build, packaging, and publishing.')
+            } else if (s.includes('fork version')) {
+              addSectionItem('Changed', 'Align package metadata with the fork release line.')
+            } else if (s.includes('stale debug logging')) {
+              addSectionItem('Removed', 'Clean up stale debug logging and obsolete bundling configuration.')
+            } else if (s.includes('upgrade axios/vite')) {
+              addSectionItem('Changed', 'Upgrade core frontend tooling and Element Plus icon usage.')
+            }
+          }
+
+          const renderSection = (title) => {
+            const items = sections[title]
+            return items.length
+              ? `### ${title}\n\n${items.map(item => `- ${item}`).join('\n')}\n\n`
+              : ''
+          }
+
+          const body = `# Changelog\n\n` +
+            `## [${version}] - ${releaseDate}\n\n` +
+            renderSection('Added') +
+            renderSection('Changed') +
+            renderSection('Fixed') +
+            renderSection('Removed') +
+            (prevTag
+              ? `### Full Changelog\n\n<details>\n<summary>Show full changelog</summary>\n\n` +
+                `[Compare changes](${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/compare/${prevTag}...${tag})\n\n` +
+                `</details>\n`
+              : '')
+
+          fs.writeFileSync('release-notes.md', body)
+          NODE
+
+      - name: Publish release
+        run: |
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release edit "$GITHUB_REF_NAME" --notes-file release-notes.md
+            gh release upload "$GITHUB_REF_NAME" dist.zip source.zip checksums.txt --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" dist.zip source.zip checksums.txt \
+              --title "$GITHUB_REF_NAME" \
+              --notes-file release-notes.md
+          fi
