@@ -36,11 +36,6 @@
     },
   })
   const emit = defineEmits(['update:visible'])
-
-  // Watch for changes to the prop and emit an event if necessary
-  // watch(() => props.visible, (newVal) => {
-  //   emit('update:visible', newVal);
-  // });
   const showChangePwd = () => {
     emit('update:visible', true)
     changePwdForm.old_password = ''
@@ -93,7 +88,6 @@
     if (!valid) {
       return
     }
-    console.log('changePassword')
     const confirm = await ElMessageBox.confirm(T('Confirm?', { param: T('ChangePassword') }), {
       confirmButtonText: T('Confirm'),
       cancelButtonText: T('Cancel'),

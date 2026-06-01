@@ -112,7 +112,6 @@
   const showRules = (row) => {
     clickRow.value = row
     rulesVisible.value = true
-    console.log('showRules')
   }
 
 </script>

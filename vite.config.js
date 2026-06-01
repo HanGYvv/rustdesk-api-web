@@ -52,9 +52,6 @@ const conf = {
               default :
                 return '__vendor'
             }
-          }else if(id.includes('Gwen-admin/src')){
-            //src 下的都打包到一起 不然很多小文件
-            return 'gwen'
           }
         },
         chunkFileNames: 'static/chunk/[name]-[hash].js',
