@@ -42,11 +42,6 @@ export default class Websock {
     let data = message.Message.encode(
       message.Message.fromPartial(json)
     ).finish();
-    // let k = this._secretKey;
-    // if (k) {
-    //   k[1] += 1;
-    //   data = globals.encrypt(data, k[1], k[0]);
-    // }
     this._websocket.send(data);
   }
 
@@ -128,7 +123,6 @@ export default class Websock {
       reject: (reason: any) => void,
       tm0: number
     ) => {
-      // console.log('next')
       if (this._buf.length) {
         resolve(this._buf[0]);
         this._buf.splice(0, 1);
@@ -167,11 +161,6 @@ export default class Websock {
   _recv_message(e: any) {
     if (e.data instanceof window.ArrayBuffer) {
       let bytes = new Uint8Array(e.data);
-      // const k = this._secretKey;
-      // if (k) {
-      //   k[2] += 1;
-      //   bytes = globals.decrypt(bytes, k[2], k[0]);
-      // }
       this._buf.push(
         this._isRendezvous
           ? this.parseRendezvous(bytes)

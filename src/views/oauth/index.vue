@@ -106,10 +106,8 @@
   import { ElMessage, ElMessageBox } from 'element-plus'
   import { T } from '@/utils/i18n'
   import { handleClipboard } from '@/utils/clipboard'
-  import { useAppStore } from '@/store/app'
+  import { getWebClientBaseUrl } from '@/utils/webclient'
   import { CopyDocument } from '@element-plus/icons-vue'
-
-  const app = useAppStore()
 
   const copyRedirectUrl = (e) => {
     handleClipboard(defaultRedirect(), e)
@@ -128,6 +126,9 @@
     { value: 'linuxdo', label: 'LinuxDo' },
     { value: 'oidc', label: 'OIDC' },
   ]
+  const defaultRedirect = () => {
+    return `${getWebClientBaseUrl()}/api/oidc/callback`
+  }
   const getList = async () => {
     listRes.loading = true
     const res = await list(listQuery).catch(_ => false)
@@ -202,10 +203,6 @@
         trigger: 'change',
       },
     ],
-  }
-
-  const defaultRedirect = () => {
-    return `${app.setting.rustdeskConfig.api_server || window.location.origin}/api/oidc/callback`
   }
 
   const toEdit = (row) => {
